@@ -27,7 +27,11 @@ bot.on("message", async (msg) => {
   } else {
     await bot.deleteMessage(chatId, messageId);
     const filename = result.stdout.toString().trim();
-    bot.sendAudio(chatId, `./${filename}`);
+    try {
+      await bot.sendAudio(chatId, `./${filename}`);
+    } catch (e) {
+      bot.sendMessage(chatId, `Failed to send ${filename}:\n${e}`);
+    }
   }
 });
 
