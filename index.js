@@ -11,6 +11,11 @@ bot.on("message", async (msg) => {
   const sender = msg.from.id;
   const url = msg.text;
 
+  if (!/youtube\.com/.test(url)) {
+    console.log(`Message was not a URL and will be ignored: ${url}`);
+    return;
+  }
+
   console.log(`downloading ${url} for ${sender}`);
   const downloadingMessage = await bot.sendMessage(sender, `Downloading...`, {
     disable_web_page_preview: true,
