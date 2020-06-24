@@ -11,7 +11,7 @@ bot.on("message", async (msg) => {
   const sender = msg.from.id;
   const url = msg.text;
 
-  if (!/youtube\.com/.test(url)) {
+  if (!/^https.+youtu/.test(url)) {
     console.log(`Message was not a URL and will be ignored: ${url}`);
     return;
   }
