@@ -5,7 +5,11 @@ const telegramBotToken = process.env["TELEGRAM_BOT_TOKEN"];
 
 const bot = new TelegramBot(telegramBotToken, { polling: true });
 
-bot.on("message", async (msg) => {
+bot.on("message", (msg) => {
+  handler(msg);
+});
+
+async function handler(msg) {
   const chatId = msg.chat.id;
   const messageId = msg.message_id;
   const sender = msg.from.id;
@@ -38,7 +42,7 @@ bot.on("message", async (msg) => {
       bot.sendMessage(chatId, `Failed to send ${filename}:\n${e}`);
     }
   }
-});
+}
 
 // basically all errors will get swallowed because this is someone's fetish
 bot.on("polling_error", console.error);
