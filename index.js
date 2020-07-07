@@ -1,6 +1,9 @@
+const fs = require("fs");
 const cp = require("child_process");
 const TelegramBot = require("node-telegram-bot-api");
 
+const MAX_FILE_SIZE_IN_MB = 50;
+const SPLIT_FILE_LENGTH_IN_SECONDS = 30 * 60;
 const telegramBotToken = process.env["TELEGRAM_BOT_TOKEN"];
 
 const bot = new TelegramBot(telegramBotToken, { polling: true });
@@ -8,6 +11,34 @@ const bot = new TelegramBot(telegramBotToken, { polling: true });
 bot.on("message", (msg) => {
   handler(msg);
 });
+
+async function handleSendAudio(chatId, filename) {
+  const stat = fs.statSync(filename);
+  const fileSizeInMB = stat.size / 1000 / 1000;
+
+  console.log(`File info: ${filename}, size ${fileSizeInMB}`);
+  if (fileSizeInMB < MAX_FILE_SIZE_IN_MB) {
+    console.log(`sending file as is: ${filename}`);
+    await bot.sendAudio(chatId, filename);
+  } else {
+    const lengthInSeconds = getLengthInSeconds(filename);
+    const parts = Math.ceil(lengthInSeconds / SPLIT_FILE_LENGTH_IN_SECONDS);
+    console.log(`splitting file into ${parts} parts: ${filename}`);
+
+    for (var i = 0; i < parts; i++) {
+      const offset = i * SPLIT_FILE_LENGTH_IN_SECONDS;
+      const segment = getOffsetSegment(
+        filename,
+        offset,
+        SPLIT_FILE_LENGTH_IN_SECONDS,
+        i + 1,
+        parts
+      );
+
+      bot.sendAudio(chatId, segment);
+    }
+  }
+}
 
 async function handler(msg) {
   const chatId = msg.chat.id;
@@ -20,41 +51,78 @@ async function handler(msg) {
     return;
   }
 
+  await handlerImpl({
+    chatId,
+    messageId,
+    sender,
+    url,
+  }).catch((e) => {
+    bot.sendMessage(chatId, `Error: ${e}`);
+  });
+}
+
+async function handlerImpl({ chatId, messageId, sender, url }) {
   console.log(`downloading ${url} for ${sender}`);
   const downloadingMessage = await bot.sendMessage(sender, `Downloading...`, {
     disable_web_page_preview: true,
     reply_to_message_id: messageId,
   });
 
-  const result = downloadAudio(url);
-
+  const filename = downloadAudio(url);
   await bot.deleteMessage(chatId, downloadingMessage.message_id);
-
-  if (result.status !== 0) {
-    console.log(`Error for ${sender}@${url}: ${result.stderr}`);
-    bot.sendMessage(chatId, `Error:\n${result.stderr}`);
-  } else {
-    await bot.deleteMessage(chatId, messageId);
-    const filename = result.stdout.toString().trim();
-    try {
-      await bot.sendAudio(chatId, `./${filename}`);
-    } catch (e) {
-      bot.sendMessage(chatId, `Failed to send ${filename}:\n${e}`);
-    }
-  }
+  await handleSendAudio(chatId, filename);
+  await bot.deleteMessage(chatId, messageId);
 }
 
 // basically all errors will get swallowed because this is someone's fetish
 bot.on("polling_error", console.error);
 
 function downloadAudio(url) {
-  return cp.spawnSync("youtube-dl", [
-    "-x",
-    "--audio-format",
-    "mp3",
-    url,
-    "--quiet",
-    "--exec",
-    "echo {}", // fuckin hell
-  ]);
+  return handleSpawnSyncResult(
+    "youtube-dl",
+    cp.spawnSync("youtube-dl", [
+      "-x",
+      "--audio-format",
+      "mp3",
+      url,
+      "--quiet",
+      "--exec",
+      "echo {}", // fuckin hell
+    ])
+  );
+}
+
+function getOffsetSegment(original, offset, duration, index, length) {
+  const segment = `${index}-of-${length}-${original.replace(/.mp3$/, "")}.mp3`;
+
+  handleSpawnSyncResult(
+    "ffmpeg",
+    cp.spawnSync("ffmpeg", [
+      "-y",
+      "-ss",
+      offset,
+      "-t",
+      duration,
+      "-i",
+      original,
+      `${segment}`,
+    ])
+  );
+
+  return segment;
+}
+
+function getLengthInSeconds(filename) {
+  return handleSpawnSyncResult(
+    "mp3info",
+    cp.spawnSync("mp3info", ["-p", "%S", filename])
+  );
+}
+
+function handleSpawnSyncResult(tag, result) {
+  if (result.status != 0) {
+    throw new Error(`${tag} failed: ${result.stderr.toString()}`);
+  } else {
+    return result.stdout.toString().trim();
+  }
 }
