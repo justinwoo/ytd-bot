@@ -35,7 +35,7 @@ async function handleSendAudio(chatId, filename) {
         parts
       );
 
-      bot.sendAudio(chatId, segment);
+      await bot.sendAudio(chatId, segment);
     }
   }
 }
