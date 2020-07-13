@@ -25,7 +25,7 @@ async function handleSendAudio(chatId, filename) {
     const parts = Math.ceil(lengthInSeconds / SPLIT_FILE_LENGTH_IN_SECONDS);
     console.log(`splitting file into ${parts} parts: ${filename}`);
 
-    for (var i = 0; i < parts; i++) {
+    for (let i = parts - 1; i > -1; i--) {
       const offset = i * SPLIT_FILE_LENGTH_IN_SECONDS;
       const segment = getOffsetSegment(
         filename,
