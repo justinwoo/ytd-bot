@@ -3,7 +3,7 @@ const cp = require("child_process");
 const TelegramBot = require("node-telegram-bot-api");
 
 const MAX_FILE_SIZE_IN_MB = 50;
-const SPLIT_FILE_LENGTH_IN_SECONDS = 30 * 60;
+const SPLIT_FILE_LENGTH_IN_SECONDS = 45 * 60;
 const telegramBotToken = process.env["TELEGRAM_BOT_TOKEN"];
 
 const bot = new TelegramBot(telegramBotToken, { polling: true });
