@@ -6,10 +6,42 @@ const MAX_FILE_SIZE_IN_MB = 50;
 const SPLIT_FILE_LENGTH_IN_SECONDS = 45 * 60;
 const telegramBotToken = process.env["TELEGRAM_BOT_TOKEN"];
 
+class Subject {
+  observers = [];
+  items = [];
+  waiting = false;
+
+  next(value) {
+    this.items.push(value);
+    this.flush();
+  }
+
+  async flush() {
+    if (!this.waiting && this.items.length > 0) {
+      let item = this.items.shift();
+      this.waiting = true;
+      for (let f of this.observers) {
+        await f(item);
+      }
+      this.waiting = false;
+      this.flush();
+    }
+  }
+
+  subscribe(observer) {
+    this.observers.push(observer);
+  }
+}
+
 const bot = new TelegramBot(telegramBotToken, { polling: true });
+const subject = new Subject();
 
 bot.on("message", (msg) => {
-  handler(msg);
+  subject.next(msg);
+});
+
+subject.subscribe(async (msg) => {
+  await handler(msg);
 });
 
 async function handleSendAudio(chatId, filename) {
