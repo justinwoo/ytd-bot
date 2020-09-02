@@ -153,7 +153,14 @@ function getLengthInSeconds(filename) {
 
 function handleSpawnSyncResult(tag, result) {
   if (result.status != 0) {
-    throw new Error(`${tag} failed: ${result.stderr.toString()}`);
+    console.error(`Error from ${tag}: ${result}`);
+    throw new Error(
+      `${tag} failed: ${
+        result.stderr
+          ? result.stderr.toString()
+          : "No stderr: is this program installed?"
+      }`
+    );
   } else {
     return result.stdout.toString().trim();
   }
