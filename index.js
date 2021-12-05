@@ -83,6 +83,12 @@ async function handler(msg) {
     return;
   }
 
+  if (url.indexOf('list') !== -1)
+  {
+    console.log(`No lists supported: ${url}`);
+    return;
+  }
+
   await handlerImpl({
     chatId,
     messageId,
@@ -117,6 +123,8 @@ function downloadAudio(url) {
       "--audio-format",
       "mp3",
       url,
+      "--output",
+      "%(title).30s.%(ext)s",
       "--quiet",
       "--exec",
       "echo {}", // fuckin hell
