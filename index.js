@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 const cp = require("child_process");
 const TelegramBot = require("node-telegram-bot-api");
 
@@ -44,7 +45,7 @@ subject.subscribe(async (msg) => {
   await handler(msg);
 });
 
-async function handleSendAudio(chatId, filename) {
+async function handleSendAudio({ chatId, filename, sender, messageId }) {
   const stat = fs.statSync(filename);
   const fileSizeInMB = stat.size / 1000 / 1000;
 
@@ -56,6 +57,14 @@ async function handleSendAudio(chatId, filename) {
     const lengthInSeconds = getLengthInSeconds(filename);
     const parts = Math.ceil(lengthInSeconds / SPLIT_FILE_LENGTH_IN_SECONDS);
     console.log(`splitting file into ${parts} parts: ${filename}`);
+
+    const splittingMessage = await bot.sendMessage(
+      sender,
+      `splitting file into ${parts} parts: ${filename}`,
+      {
+        reply_to_message_id: messageId,
+      }
+    );
 
     for (let i = parts - 1; i > -1; i--) {
       const offset = i * SPLIT_FILE_LENGTH_IN_SECONDS;
@@ -69,6 +78,8 @@ async function handleSendAudio(chatId, filename) {
 
       await bot.sendAudio(chatId, segment);
     }
+
+    await bot.deleteMessage(chatId, splittingMessage.message_id);
   }
 }
 
@@ -83,8 +94,7 @@ async function handler(msg) {
     return;
   }
 
-  if (url.indexOf('list') !== -1)
-  {
+  if (url.indexOf("list") !== -1) {
     console.log(`No lists supported: ${url}`);
     return;
   }
@@ -107,8 +117,18 @@ async function handlerImpl({ chatId, messageId, sender, url }) {
   });
 
   const filename = downloadAudio(url);
+
+  const statusMessage = await bot.sendMessage(
+    sender,
+    `Downloaded audio. Sending...`,
+    {
+      reply_to_message_id: messageId,
+    }
+  );
+
   await bot.deleteMessage(chatId, downloadingMessage.message_id);
-  await handleSendAudio(chatId, filename);
+  await handleSendAudio({ chatId, filename, messageId, sender });
+  await bot.deleteMessage(chatId, statusMessage.message_id);
   await bot.deleteMessage(chatId, messageId);
 }
 
@@ -116,24 +136,26 @@ async function handlerImpl({ chatId, messageId, sender, url }) {
 bot.on("polling_error", console.error);
 
 function downloadAudio(url) {
-  return handleSpawnSyncResult(
-    "youtube-dl",
-    cp.spawnSync("youtube-dl", [
-      "-x",
-      "--audio-format",
-      "mp3",
-      url,
-      "--output",
-      "%(title).30s.%(ext)s",
-      "--quiet",
-      "--exec",
-      "echo {}", // fuckin hell
-    ])
-  );
+  const opts = [
+    "-x",
+    "--audio-format",
+    "mp3",
+    url,
+    "-o",
+    "%(title)s.%(ext)s",
+    "--quiet",
+    "--exec",
+    "echo {}", // fuckin hell
+  ];
+
+  console.log(`opts: ${opts.join(" ")}`);
+
+  return handleSpawnSyncResult("yt-dlp", cp.spawnSync("yt-dlp", opts));
 }
 
 function getOffsetSegment(original, offset, duration, index, length) {
-  const segment = `${index}-of-${length}-${original.replace(/.mp3$/, "")}.mp3`;
+  const segment = `${index}-of-${length}-${path.posix.basename(original)}`;
+  console.log(`segment: ${segment}`);
 
   handleSpawnSyncResult(
     "ffmpeg",
